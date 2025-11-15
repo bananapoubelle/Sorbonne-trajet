@@ -14,6 +14,7 @@
       margin: 20px auto;
       border-radius: 12px;
     }
+
     #instructions {
       text-align: center;
       margin: 10px auto;
@@ -23,10 +24,12 @@
       border-radius: 8px;
       display: none;
     }
+
     #login {
       text-align: center;
       margin: 20px;
     }
+
     button {
       margin-top: 6px;
       padding: 6px 12px;
@@ -36,13 +39,18 @@
       border-radius: 6px;
       cursor: pointer;
     }
-    button:hover { background: #0059b3; }
+
+    button:hover {
+      background: #0059b3;
+    }
+
     .color-picker {
       display: none;
       justify-content: center;
       gap: 10px;
       margin-top: 10px;
     }
+
     .color-option {
       width: 25px;
       height: 25px;
@@ -51,7 +59,10 @@
       cursor: pointer;
       box-shadow: 0 0 2px rgba(0,0,0,0.5);
     }
-    .color-option:hover { transform: scale(1.2); }
+
+    .color-option:hover {
+      transform: scale(1.2);
+    }
 
     /* 📍 Coordonnées en bas à gauche */
     #coords {
@@ -99,200 +110,142 @@
 </div>
 
 <div id="map"></div>
+
+<!-- 📍 Affichage des coordonnées -->
 <div id="coords"></div>
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet-extra-markers/dist/js/leaflet.extra-markers.min.js"></script>
 
 <script>
-/* 🔐 Mot de passe */
-const ADMIN_PASSWORD = "conteneurs2025";
+  const ADMIN_PASSWORD = "conteneurs2025";
+  let isAdmin = false;
+  let selectedColor = "blue";
 
-/* 🔗 URL Google Sheets */
-const SHEET_URL = "https://script.google.com/macros/s/AKfycbxpdytMtfg_A4OyOvZSSFXqBYklwCLei4uQJY_b69Cl2BFM7xmYAE-KdLUbxdkdZUoa/exec";
+  const map = L.map('map').setView([0, 0], 2);
 
-/* 🗺️ Leaflet */
-let isAdmin = false;
-let selectedColor = "blue";
-let points = [];
-let map = L.map("map").setView([0, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "&copy; OpenStreetMap contributors"
-}).addTo(map);
+  let points = JSON.parse(localStorage.getItem("points")) || [];
 
-/* 🎨 Icône colorée */
-function coloredMarker(color) {
-  return L.ExtraMarkers.icon({
-    icon: "fa-ship",
-    markerColor: color || "blue",
-    shape: "circle",
-    prefix: "fa"
-  });
-}
-
-/* 🖼️ Affichage des points */
-function renderPoints() {
-  map.eachLayer(layer => {
-    if (layer instanceof L.Marker) map.removeLayer(layer);
-  });
-
-  points.forEach((p, i) => {
-    const marker = L.marker([p.lat, p.lng], {
-      icon: coloredMarker(p.color)
-    }).addTo(map);
-
-    marker.bindTooltip(
-      p.shortInfo || "",
-      { permanent: true, direction: "top", offset: [0, -10] }
-    );
-
-    let popup = `
-      <b>${p.description}</b><br>
-      <i>Lat: ${p.lat}, Lng: ${p.lng}</i>
-    `;
-
-    if (isAdmin) {
-      popup += `
-        <br><button onclick="editPoint(${i})">✏️ Modifier</button>
-        <button onclick="deletePoint(${i})">🗑️ Supprimer</button>
-      `;
-    }
-
-    marker.bindPopup(popup);
-  });
-}
-
-/* 🟦 Google Sheets → Points */
-async function loadFromSheets() {
-  try {
-    const res = await fetch(SHEET_URL + "?read=1");
-    const data = await res.json();
-    if (data.length > 0) {
-      points = data;
-      localStorage.setItem("points", JSON.stringify(points));
-      renderPoints();
-      return true;
-    }
-  } catch (e) {
-    console.log("Erreur lecture Sheets", e);
-  }
-  return false;
-}
-
-/* 🟧 LocalStorage → Google Sheets (migration initiale) */
-async function migrateLocalToSheets() {
-  const local = JSON.parse(localStorage.getItem("points")) || [];
-  if (local.length === 0) return;
-
-  for (const p of local) {
-    await fetch(SHEET_URL, {
-      method: "POST",
-      body: JSON.stringify(p)
+  function coloredMarker(color) {
+    return L.ExtraMarkers.icon({
+      icon: 'fa-ship',
+      markerColor: color || 'blue',
+      shape: 'circle',
+      prefix: 'fa'
     });
   }
 
-  localStorage.removeItem("points");
-}
+  function renderPoints() {
+    map.eachLayer(layer => {
+      if (layer instanceof L.Marker) map.removeLayer(layer);
+    });
 
-/* 🚀 Chargement initial */
-(async () => {
-  const hasSheets = await loadFromSheets();
+    points.forEach((p, i) => {
+      const marker = L.marker([p.lat, p.lng], {
+        icon: coloredMarker(p.color || 'blue')
+      }).addTo(map);
 
-  if (!hasSheets) {
-    await migrateLocalToSheets();
-    await loadFromSheets();
+      marker.bindTooltip(
+        p.shortInfo || p.description.split('\n')[0],
+        { permanent: true, direction: "top", offset: [0, -10] }
+      );
+
+      let popupContent = `
+        <b>${p.description}</b><br>
+        <i>Lat: ${p.lat}, Lng: ${p.lng}</i>
+      `;
+
+      if (isAdmin) {
+        popupContent += `
+          <br><button onclick="editPoint(${i})">✏️ Modifier</button>
+          <button onclick="deletePoint(${i})">🗑️ Supprimer</button>
+        `;
+      }
+
+      marker.bindPopup(popupContent);
+    });
   }
 
   renderPoints();
-})();
 
-/* ➕ Ajouter un point */
-map.on("click", e => {
-  if (!isAdmin) return;
+  map.on('click', e => {
+    if (!isAdmin) return;
 
-  const lat = e.latlng.lat.toFixed(5);
-  const lng = e.latlng.lng.toFixed(5);
+    const lat = e.latlng.lat.toFixed(5);
+    const lng = e.latlng.lng.toFixed(5);
 
-  const shortInfo = prompt("Texte court (affiché en permanence) :");
-  if (!shortInfo) return;
+    const shortInfo = prompt("Texte court (affiché en permanence) :");
+    if (!shortInfo) return;
 
-  const description = prompt("Texte complet (affiché au clic) :");
-  if (!description) return;
+    const description = prompt("Texte complet (affiché au clic) :");
+    if (!description) return;
 
-  const newPoint = { lat, lng, shortInfo, description, color: selectedColor };
-  points.push(newPoint);
-  renderPoints();
-
-  fetch(SHEET_URL, {
-    method: "POST",
-    body: JSON.stringify(newPoint)
-  });
-});
-
-/* ✏️ Modifier */
-window.editPoint = function(i) {
-  const p = points[i];
-
-  const newShort = prompt("Texte court :", p.shortInfo);
-  if (!newShort) return;
-
-  const newDesc = prompt("Texte complet :", p.description);
-  if (!newDesc) return;
-
-  p.shortInfo = newShort;
-  p.description = newDesc;
-
-  fetch(SHEET_URL, { method: "POST", body: JSON.stringify(p) });
-  renderPoints();
-};
-
-/* 🗑️ Supprimer */
-window.deletePoint = function(i) {
-  if (!confirm("Supprimer ce point ?")) return;
-
-  points.splice(i, 1);
-  renderPoints();
-
-  fetch(SHEET_URL + "?delete=" + i);
-};
-
-/* 🔐 Connexion */
-document.getElementById("loginBtn").addEventListener("click", () => {
-  if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
-    isAdmin = true;
-    alert("Connexion réussie !");
-    document.getElementById("login").style.display = "none";
-    document.getElementById("instructions").style.display = "block";
-    document.getElementById("colorPalette").style.display = "flex";
+    points.push({ lat, lng, shortInfo, description, color: selectedColor });
+    localStorage.setItem("points", JSON.stringify(points));
     renderPoints();
-  } else {
-    alert("Mot de passe incorrect ❌");
-  }
-});
-
-/* 🎨 Sélecteur couleur */
-document.querySelectorAll(".color-option").forEach(el => {
-  el.addEventListener("click", () => {
-    selectedColor = el.dataset.color;
-
-    document.querySelectorAll(".color-option").forEach(c =>
-      c.style.border = "2px solid white"
-    );
-    el.style.border = "3px solid black";
   });
-});
 
-/* 🧭 Coordonnées bas-gauche */
-const coordsDiv = document.getElementById("coords");
-map.on("mousemove", e => {
-  coordsDiv.style.display = "block";
-  coordsDiv.textContent =
-    `Lat: ${e.latlng.lat.toFixed(5)} | Lng: ${e.latlng.lng.toFixed(5)}`;
-});
-map.on("mouseout", () => coordsDiv.style.display = "none");
+  window.editPoint = function(i) {
+    const newShort = prompt("Nouveau texte court :", points[i].shortInfo);
+    const newDesc = prompt("Nouveau texte complet :", points[i].description);
+    if (!newShort || !newDesc) return;
 
+    points[i].shortInfo = newShort;
+    points[i].description = newDesc;
+
+    localStorage.setItem("points", JSON.stringify(points));
+    renderPoints();
+  }
+
+  window.deletePoint = function(i) {
+    if (!confirm("Supprimer ce point ?")) return;
+    points.splice(i, 1);
+    localStorage.setItem("points", JSON.stringify(points));
+    renderPoints();
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", () => {
+    const input = document.getElementById("passwordInput").value;
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      alert("Connexion réussie !");
+      document.getElementById("login").style.display = "none";
+      document.getElementById("instructions").style.display = "block";
+      document.getElementById("colorPalette").style.display = "flex";
+      renderPoints();
+    } else {
+      alert("Mot de passe incorrect ❌");
+    }
+  });
+
+  document.querySelectorAll(".color-option").forEach(el => {
+    el.addEventListener("click", () => {
+      selectedColor = el.dataset.color;
+
+      document.querySelectorAll(".color-option").forEach(c =>
+        c.style.border = "2px solid white"
+      );
+      el.style.border = "3px solid black";
+    });
+  });
+
+  /* 📍 AFFICHAGE COORDONNÉES */
+  const coordsDiv = document.getElementById("coords");
+
+  map.on("mousemove", e => {
+    coordsDiv.style.display = "block";
+    coordsDiv.textContent = `Lat: ${e.latlng.lat.toFixed(5)} | Lng: ${e.latlng.lng.toFixed(5)}`;
+  });
+
+  map.on("mouseout", () => {
+    coordsDiv.style.display = "none";
+  });
 </script>
 
 </body>
 </html>
+
