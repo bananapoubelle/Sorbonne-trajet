@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Espace texte</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    main {
+      width: 80%;
+      margin: 40px auto;
+      background: #f8f8ff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+    textarea {
+      width: 100%;
+      height: 300px;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      resize: vertical;
+      font-size: 16px;
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+    }
+    button {
+      margin-top: 10px;
+      background-color: #004080;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0059b3;
+    }
+    select, input {
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+    #login {
+      text-align: center;
+      margin: 20px;
+    }
+    .readonly {
+      background-color: #f4f4f4;
+    }
+    #pageControls {
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Carnet de bord</h1>
+    <nav>
+      <a href="index.html">Accueil</a>
+      <a href="carte.html">Carte</a>
+      <a href="texte.html">Carnet de bord</a>
+    </nav>
+  </header>
+
+  <!-- 🔒 Zone de connexion admin -->
+  <div id="login">
+    <input type="password" id="passwordInput" placeholder="Mot de passe admin">
+    <button id="loginBtn">Connexion</button>
+  </div>
+
+  <main>
+    <h2>Notes et informations</h2>
+    <p>Ci-dessous se trouvent les pages du carnet de bord du porte-conteneur <strong>Sorbonne</strong>.</p>
+
+    <!-- 🗂️ Zone visible par tous (navigation entre pages) -->
+    <div id="pageControls">
+      <label for="pageSelect">Page :</label>
+      <select id="pageSelect"></select>
+    </div>
+
+    <!-- 🔒 Zone visible uniquement pour l’admin -->
+    <div id="adminPageControls" style="display:none;">
+      <input type="text" id="newPageName" placeholder="Nom nouvelle page">
+      <button id="addPageBtn">➕ Ajouter</button>
+      <button id="deletePageBtn">🗑️ Supprimer</button>
+    </div>
+
+    <!-- 📜 Zone de texte -->
+    <textarea id="noteArea" readonly class="readonly"></textarea><br>
+
+    <!-- 🔒 Boutons admin (sauvegarde) -->
+    <div id="adminButtons" style="display:none;">
+      <button id="saveBtn">💾 Sauvegarder</button>
+    </div>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 - Projet Sorbonne</p>
+  </footer>
+
+  <script>
+    const ADMIN_PASSWORD = "conteneurs2025";
+    let isAdmin = false;
+    let currentPage = "Page 1";
+
+    const noteArea = document.getElementById("noteArea");
+    const adminButtons = document.getElementById("adminButtons");
+    const adminPageControls = document.getElementById("adminPageControls");
+    const pageSelect = document.getElementById("pageSelect");
+    const newPageName = document.getElementById("newPageName");
+
+    // Charger les pages existantes
+    let pages = JSON.parse(localStorage.getItem("pages_sorbonne")) || ["Page 1"];
+    function refreshPageList() {
+      pageSelect.innerHTML = "";
+      pages.forEach(p => {
+        const option = document.createElement("option");
+        option.value = p;
+        option.textContent = p;
+        pageSelect.appendChild(option);
+      });
+      pageSelect.value = currentPage;
+    }
+
+    // Charger le texte de la page courante
+    function loadPage() {
+      const savedText = localStorage.getItem("texte_sorbonne_" + currentPage);
+      noteArea.value = savedText || "Aucun texte pour cette page.";
+    }
+
+    refreshPageList();
+    loadPage();
+
+    // Changer de page
+    pageSelect.addEventListener("change", () => {
+      currentPage = pageSelect.value;
+      loadPage();
+    });
+
+    // Ajouter une page
+    document.getElementById("addPageBtn").addEventListener("click", () => {
+      const name = newPageName.value.trim();
+      if (!isAdmin) return alert("Réservé à l’administrateur.");
+      if (!name) return alert("Entrez un nom de page.");
+      if (pages.includes(name)) return alert("Cette page existe déjà.");
+      pages.push(name);
+      localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+      newPageName.value = "";
+      refreshPageList();
+      currentPage = name;
+      loadPage();
+    });
+
+    // Supprimer une page
+    document.getElementById("deletePageBtn").addEventListener("click", () => {
+      if (!isAdmin) return alert("Réservé à l’administrateur.");
+      if (confirm(`Supprimer "${currentPage}" ?`)) {
+        pages = pages.filter(p => p !== currentPage);
+        localStorage.removeItem("texte_sorbonne_" + currentPage);
+        localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+        currentPage = pages[0] || "Page 1";
+        if (pages.length === 0) pages.push("Page 1");
+        refreshPageList();
+        loadPage();
+      }
+    });
+
+    // Connexion admin
+    document.getElementById("loginBtn").addEventListener("click", () => {
+      const input = document.getElementById("passwordInput").value;
+      if (input === ADMIN_PASSWORD) {
+        isAdmin = true;
+        alert("Connexion réussie !");
+        document.getElementById("login").style.display = "none";
+
+        // ✅ Active uniquement les zones admin
+        noteArea.readOnly = false;
+        noteArea.classList.remove("readonly");
+        adminButtons.style.display = "block";
+        adminPageControls.style.display = "block";
+      } else {
+        alert("Mot de passe incorrect ❌");
+      }
+    });
+
+    // Sauvegarder le texte
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      if (!isAdmin) return alert("Accès réservé à l’administrateur.");
+      localStorage.setItem("texte_sorbonne_" + currentPage, noteArea.value);
+      alert("Texte sauvegardé !");
+    });
+  </script>
+</body>
+</html>

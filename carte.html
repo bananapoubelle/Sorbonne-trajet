@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Carte du Trajet</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-extra-markers/dist/css/leaflet.extra-markers.min.css" />
+
+  <style>
+    #map {
+      height: 80vh;
+      width: 90%;
+      margin: 20px auto;
+      border-radius: 12px;
+    }
+
+    #instructions {
+      text-align: center;
+      margin: 10px auto;
+      background: #eef;
+      width: fit-content;
+      padding: 8px 14px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    #login {
+      text-align: center;
+      margin: 20px;
+    }
+
+    button {
+      margin-top: 6px;
+      padding: 6px 12px;
+      border: none;
+      background: #004080;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #0059b3;
+    }
+
+    .color-picker {
+      display: none;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .color-option {
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      border: 2px solid white;
+      cursor: pointer;
+      box-shadow: 0 0 2px rgba(0,0,0,0.5);
+    }
+
+    .color-option:hover {
+      transform: scale(1.2);
+    }
+
+    /* 📍 Coordonnées en bas à gauche */
+    #coords {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      font-size: 14px;
+      border-radius: 6px;
+      z-index: 9999;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Trajectoire du Porte-conteneurs</h1>
+  <nav>
+    <a href="index.html">Accueil</a>
+    <a href="carte.html">Carte</a>
+  </nav>
+</header>
+
+<div id="instructions">
+  🗺️ Clique sur la carte pour ajouter un point.<br>
+  🎨 Choisis une couleur avant d’ajouter un marqueur.<br>
+  ✏️ Clique sur un point pour le modifier ou le supprimer.<br>
+</div>
+
+<div id="login">
+  <input type="password" id="passwordInput" placeholder="Mot de passe admin">
+  <button id="loginBtn">Connexion</button>
+</div>
+
+<div id="colorPalette" class="color-picker">
+  <div class="color-option" style="background:red;" data-color="red"></div>
+  <div class="color-option" style="background:orange;" data-color="orange"></div>
+  <div class="color-option" style="background:green;" data-color="green"></div>
+  <div class="color-option" style="background:blue;" data-color="blue"></div>
+  <div class="color-option" style="background:purple;" data-color="purple"></div>
+  <div class="color-option" style="background:black;" data-color="black"></div>
+</div>
+
+<div id="map"></div>
+
+<!-- 📍 Affichage des coordonnées -->
+<div id="coords"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-extra-markers/dist/js/leaflet.extra-markers.min.js"></script>
+
+<script>
+  const ADMIN_PASSWORD = "conteneurs2025";
+  let isAdmin = false;
+  let selectedColor = "blue";
+
+  const map = L.map('map').setView([0, 0], 2);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  let points = JSON.parse(localStorage.getItem("points")) || [];
+
+  function coloredMarker(color) {
+    return L.ExtraMarkers.icon({
+      icon: 'fa-ship',
+      markerColor: color || 'blue',
+      shape: 'circle',
+      prefix: 'fa'
+    });
+  }
+
+  function renderPoints() {
+    map.eachLayer(layer => {
+      if (layer instanceof L.Marker) map.removeLayer(layer);
+    });
+
+    points.forEach((p, i) => {
+      const marker = L.marker([p.lat, p.lng], {
+        icon: coloredMarker(p.color || 'blue')
+      }).addTo(map);
+
+      marker.bindTooltip(
+        p.shortInfo || p.description.split('\n')[0],
+        { permanent: true, direction: "top", offset: [0, -10] }
+      );
+
+      let popupContent = `
+        <b>${p.description}</b><br>
+        <i>Lat: ${p.lat}, Lng: ${p.lng}</i>
+      `;
+
+      if (isAdmin) {
+        popupContent += `
+          <br><button onclick="editPoint(${i})">✏️ Modifier</button>
+          <button onclick="deletePoint(${i})">🗑️ Supprimer</button>
+        `;
+      }
+
+      marker.bindPopup(popupContent);
+    });
+  }
+
+  renderPoints();
+
+  map.on('click', e => {
+    if (!isAdmin) return;
+
+    const lat = e.latlng.lat.toFixed(5);
+    const lng = e.latlng.lng.toFixed(5);
+
+    const shortInfo = prompt("Texte court (affiché en permanence) :");
+    if (!shortInfo) return;
+
+    const description = prompt("Texte complet (affiché au clic) :");
+    if (!description) return;
+
+    points.push({ lat, lng, shortInfo, description, color: selectedColor });
+    localStorage.setItem("points", JSON.stringify(points));
+    renderPoints();
+  });
+
+  window.editPoint = function(i) {
+    const newShort = prompt("Nouveau texte court :", points[i].shortInfo);
+    const newDesc = prompt("Nouveau texte complet :", points[i].description);
+    if (!newShort || !newDesc) return;
+
+    points[i].shortInfo = newShort;
+    points[i].description = newDesc;
+
+    localStorage.setItem("points", JSON.stringify(points));
+    renderPoints();
+  }
+
+  window.deletePoint = function(i) {
+    if (!confirm("Supprimer ce point ?")) return;
+    points.splice(i, 1);
+    localStorage.setItem("points", JSON.stringify(points));
+    renderPoints();
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", () => {
+    const input = document.getElementById("passwordInput").value;
+    if (input === ADMIN_PASSWORD) {
+      isAdmin = true;
+      alert("Connexion réussie !");
+      document.getElementById("login").style.display = "none";
+      document.getElementById("instructions").style.display = "block";
+      document.getElementById("colorPalette").style.display = "flex";
+      renderPoints();
+    } else {
+      alert("Mot de passe incorrect ❌");
+    }
+  });
+
+  document.querySelectorAll(".color-option").forEach(el => {
+    el.addEventListener("click", () => {
+      selectedColor = el.dataset.color;
+
+      document.querySelectorAll(".color-option").forEach(c =>
+        c.style.border = "2px solid white"
+      );
+      el.style.border = "3px solid black";
+    });
+  });
+
+  /* 📍 AFFICHAGE COORDONNÉES */
+  const coordsDiv = document.getElementById("coords");
+
+  map.on("mousemove", e => {
+    coordsDiv.style.display = "block";
+    coordsDiv.textContent = `Lat: ${e.latlng.lat.toFixed(5)} | Lng: ${e.latlng.lng.toFixed(5)}`;
+  });
+
+  map.on("mouseout", () => {
+    coordsDiv.style.display = "none";
+  });
+</script>
+
+</body>
+</html>
