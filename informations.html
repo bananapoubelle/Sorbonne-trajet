@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Informations supplémentaires</title>
   <link rel="stylesheet" href="style.css">
+
   <style>
     main {
       width: 80%;
@@ -52,9 +53,21 @@
     #pageControls {
       margin-bottom: 15px;
     }
+
+    /* Zone des images */
+    #imageGallery img {
+      width: 200px;
+      margin: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+    #imageGallery {
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
+
   <header>
     <h1>Informations supplémentaires</h1>
     <nav>
@@ -65,7 +78,7 @@
     </nav>
   </header>
 
-  <!-- 🔒 Zone de connexion admin -->
+  <!-- 🔒 Connexion admin -->
   <div id="login">
     <input type="password" id="passwordInput" placeholder="Mot de passe admin">
     <button id="loginBtn">Connexion</button>
@@ -73,29 +86,39 @@
 
   <main>
     <h2>Pages d'informations</h2>
-    <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie cma cgm, ainsi que 2 passages stratégiques que ce
-    bateau a traversé entre le 26 septembre et le 6 novembre.</p>
+    <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie CMA CGM, ainsi que 2 passages stratégiques.</p>
 
-    <!-- 🗂️ Navigation entre les pages -->
+    <!-- 🗂️ Navigation pages -->
     <div id="pageControls">
       <label for="pageSelect">Page :</label>
       <select id="pageSelect"></select>
     </div>
 
-    <!-- 🔒 Zone admin (ajout / suppression de pages) -->
+    <!-- 🔒 Boutons admin pages -->
     <div id="adminPageControls" style="display:none;">
       <input type="text" id="newPageName" placeholder="Nom nouvelle page">
       <button id="addPageBtn">➕ Ajouter</button>
       <button id="deletePageBtn">🗑️ Supprimer</button>
     </div>
 
-    <!-- 📜 Zone de texte -->
-    <textarea id="noteArea" readonly class="readonly"></textarea><br>
+    <!-- 📝 Texte -->
+    <textarea id="noteArea" readonly class="readonly"></textarea>
 
-    <!-- 🔒 Boutons admin -->
-    <div id="adminButtons" style="display:none;">
-      <button id="saveBtn">💾 Sauvegarder</button>
+    <!-- 🖼️ Galerie d'images -->
+    <h3>Images</h3>
+    <div id="imageGallery"></div>
+
+    <!-- 🔒 Ajout d’image -->
+    <div id="adminImageControls" style="display:none;">
+      <input type="file" id="imageInput" accept="image/*">
+      <button id="addImageBtn">📷 Ajouter image</button>
     </div>
+
+    <!-- 🔒 Save -->
+    <div id="adminButtons" style="display:none;">
+      <button id="saveBtn">💾 Sauvegarder texte</button>
+    </div>
+
   </main>
 
   <footer>
@@ -110,10 +133,12 @@
     const noteArea = document.getElementById("noteArea");
     const adminButtons = document.getElementById("adminButtons");
     const adminPageControls = document.getElementById("adminPageControls");
+    const adminImageControls = document.getElementById("adminImageControls");
     const pageSelect = document.getElementById("pageSelect");
     const newPageName = document.getElementById("newPageName");
+    const imageGallery = document.getElementById("imageGallery");
 
-    // Charger les pages existantes (clé différente pour ne pas mélanger avec carnet de bord)
+    // 📄 Charger les pages
     let pages = JSON.parse(localStorage.getItem("pages_infos_sorbonne")) || ["Page 1"];
 
     function refreshPageList() {
@@ -130,73 +155,103 @@
     function loadPage() {
       const savedText = localStorage.getItem("infos_sorbonne_" + currentPage);
       noteArea.value = savedText || "Aucun texte pour cette page.";
+
+      // Charger les images
+      const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
+      imageGallery.innerHTML = "";
+      images.forEach(src => {
+        const img = document.createElement("img");
+        img.src = src;
+        imageGallery.appendChild(img);
+      });
     }
 
     refreshPageList();
     loadPage();
 
-    // Changer de page
+    // 🔄 Changer de page
     pageSelect.addEventListener("change", () => {
       currentPage = pageSelect.value;
       loadPage();
     });
 
-    // Ajouter une page
+    // ➕ Ajouter une page
     document.getElementById("addPageBtn").addEventListener("click", () => {
       const name = newPageName.value.trim();
       if (!isAdmin) return alert("Réservé à l’administrateur.");
-      if (!name) return alert("Entrez un nom de page.");
-      if (pages.includes(name)) return alert("Cette page existe déjà.");
+      if (!name) return alert("Entrez un nom.");
+      if (pages.includes(name)) return alert("La page existe déjà.");
 
       pages.push(name);
       localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
-
       newPageName.value = "";
+
       refreshPageList();
       currentPage = name;
       loadPage();
     });
 
-    // Supprimer une page
+    // 🗑️ Supprimer page
     document.getElementById("deletePageBtn").addEventListener("click", () => {
-      if (!isAdmin) return alert("Réservé à l’administrateur.");
+      if (!isAdmin) return alert("Réservé admin.");
+      if (!confirm(`Supprimer "${currentPage}" ?`)) return;
 
-      if (confirm(`Supprimer "${currentPage}" ?`)) {
-        pages = pages.filter(p => p !== currentPage);
-        localStorage.removeItem("infos_sorbonne_" + currentPage);
-        localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
+      pages = pages.filter(p => p !== currentPage);
 
-        currentPage = pages[0] || "Page 1";
-        if (pages.length === 0) pages.push("Page 1");
+      localStorage.removeItem("infos_sorbonne_" + currentPage);
+      localStorage.removeItem("infos_images_" + currentPage);
 
-        refreshPageList();
-        loadPage();
-      }
+      localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
+
+      currentPage = pages[0] || "Page 1";
+      if (pages.length === 0) pages.push("Page 1");
+
+      refreshPageList();
+      loadPage();
     });
 
-    // Connexion admin
+    // 🔐 Connexion admin
     document.getElementById("loginBtn").addEventListener("click", () => {
-      const input = document.getElementById("passwordInput").value;
-
-      if (input === ADMIN_PASSWORD) {
+      if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
         isAdmin = true;
-        alert("Connexion réussie !");
-        document.getElementById("login").style.display = "none";
+        alert("Connexion réussie");
 
+        document.getElementById("login").style.display = "none";
         noteArea.readOnly = false;
         noteArea.classList.remove("readonly");
+
         adminButtons.style.display = "block";
         adminPageControls.style.display = "block";
+        adminImageControls.style.display = "block";
       } else {
-        alert("Mot de passe incorrect ❌");
+        alert("Mot de passe incorrect");
       }
     });
 
-    // Sauvegarder le texte
+    // 💾 Sauvegarder texte
     document.getElementById("saveBtn").addEventListener("click", () => {
-      if (!isAdmin) return alert("Accès réservé administrateur.");
+      if (!isAdmin) return;
       localStorage.setItem("infos_sorbonne_" + currentPage, noteArea.value);
       alert("Texte sauvegardé !");
+    });
+
+    // 📷 Ajouter image
+    document.getElementById("addImageBtn").addEventListener("click", () => {
+      if (!isAdmin) return;
+
+      const fileInput = document.getElementById("imageInput");
+      const file = fileInput.files[0];
+      if (!file) return alert("Sélectionne une image.");
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
+        images.push(e.target.result);
+
+        localStorage.setItem("infos_images_" + currentPage, JSON.stringify(images));
+        loadPage();
+      };
+      reader.readAsDataURL(file);
     });
   </script>
 </body>
