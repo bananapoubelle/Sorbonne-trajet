@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Espace texte</title>
+  <title>Carnet de bord</title>
   <link rel="stylesheet" href="style.css">
   <style>
     main {
@@ -55,164 +55,177 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1>Carnet de bord</h1>
-    <nav>
-      <a href="index.html">Accueil</a>
-      <a href="carte.html">Carte</a>
-      <a href="texte.html">Carnet de bord</a>
-    </nav>
-  </header>
 
-  <div id="login">
-    <input type="password" id="passwordInput" placeholder="Mot de passe admin">
-    <button id="loginBtn">Connexion</button>
+<header>
+  <h1>Carnet de bord</h1>
+  <nav>
+    <a href="index.html">Accueil</a>
+    <a href="carte.html">Carte</a>
+    <a href="texte.html">Carnet de bord</a>
+    <a href="informations.html">Informations supplémentaires</a>
+  </nav>
+</header>
+
+<!-- Connexion admin -->
+<div id="login">
+  <input type="password" id="passwordInput" placeholder="Mot de passe admin">
+  <button id="loginBtn">Connexion</button>
+</div>
+
+<main>
+  <h2>Notes et informations</h2>
+  <p>Ci-dessous se trouvent les pages du carnet de bord du porte-conteneur <strong>Sorbonne</strong>.</p>
+
+  <div id="pageControls">
+    <label for="pageSelect">Page :</label>
+    <select id="pageSelect"></select>
   </div>
 
-  <main>
-    <h2>Notes et informations</h2>
-    <p>Ci-dessous se trouvent les pages du carnet de bord du porte-conteneur <strong>Sorbonne</strong>.</p>
+  <div id="adminPageControls" style="display:none;">
+    <input type="text" id="newPageName" placeholder="Nom nouvelle page">
+    <button id="addPageBtn">➕ Ajouter</button>
+    <button id="deletePageBtn">🗑️ Supprimer</button>
+  </div>
 
-    <div id="pageControls">
-      <label for="pageSelect">Page :</label>
-      <select id="pageSelect"></select>
-    </div>
+  <textarea id="noteArea" readonly class="readonly"></textarea><br>
 
-    <div id="adminPageControls" style="display:none;">
-      <input type="text" id="newPageName" placeholder="Nom nouvelle page">
-      <button id="addPageBtn">➕ Ajouter</button>
-      <button id="deletePageBtn">🗑️ Supprimer</button>
-    </div>
+  <div id="adminButtons" style="display:none;">
+    <button id="saveBtn">💾 Sauvegarder</button>
+  </div>
+</main>
 
-    <textarea id="noteArea" readonly class="readonly"></textarea><br>
+<footer>
+  <p>&copy; 2025 - Projet Sorbonne</p>
+</footer>
 
-    <div id="adminButtons" style="display:none;">
-      <button id="saveBtn">💾 Sauvegarder</button>
-    </div>
-  </main>
+<script>
+/* ----------------------------------
+   CONFIG
+---------------------------------- */
+const ADMIN_PASSWORD = "conteneurs2025";
+const API_URL = "https://script.google.com/macros/s/AKfycbxpdytMtfg_A4OyOvZSSFXqBYklwCLei4uQJY_b69Cl2BFM7xmYAE-KdLUbxdkdZUoa/exec";
 
-  <footer>
-    <p>&copy; 2025 - Projet Sorbonne</p>
-  </footer>
+let isAdmin = false;
+let currentPage = "";
 
-  <!-- Firebase -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+/* DOM Elements */
+const noteArea = document.getElementById("noteArea");
+const pageSelect = document.getElementById("pageSelect");
+const adminButtons = document.getElementById("adminButtons");
+const adminPageControls = document.getElementById("adminPageControls");
+const newPageName = document.getElementById("newPageName");
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyDHlrbK2iNvCZ6wThguhYyfOAC0_n5YmE",
-      authDomain: "sorbonne-1134e.firebaseapp.com",
-      projectId: "sorbonne-1134e",
-      storageBucket: "sorbonne-1134e.firebasestorage.app",
-      messagingSenderId: "655157876768",
-      appId: "1:655157876768:web:838e12e0eaaca2e8580445"
-    };
+/* ----------------------------------
+   CHARGER LISTE DES PAGES
+---------------------------------- */
+async function loadPages() {
+  const res = await fetch(API_URL + "?action=getPages");
+  const data = await res.json();
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+  pageSelect.innerHTML = "";
+  data.pages.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    pageSelect.appendChild(opt);
+  });
 
-    const ADMIN_PASSWORD = "conteneurs2025";
-    let isAdmin = false;
-    let currentPage = "Page 1";
+  currentPage = data.pages[0];
+  loadPageContent();
+}
 
-    const noteArea = document.getElementById("noteArea");
-    const adminButtons = document.getElementById("adminButtons");
-    const adminPageControls = document.getElementById("adminPageControls");
-    const pageSelect = document.getElementById("pageSelect");
-    const newPageName = document.getElementById("newPageName");
+/* ----------------------------------
+   CHARGER CONTENU D’UNE PAGE
+---------------------------------- */
+async function loadPageContent() {
+  const res = await fetch(API_URL + "?action=getPage&name=" + encodeURIComponent(currentPage));
+  const data = await res.json();
 
-    let pages = JSON.parse(localStorage.getItem("pages_sorbonne")) || ["Page 1"];
+  noteArea.value = data.text || "Aucun texte pour cette page.";
+}
 
-    function refreshPageList() {
-      pageSelect.innerHTML = "";
-      pages.forEach(p => {
-        const option = document.createElement("option");
-        option.value = p;
-        option.textContent = p;
-        pageSelect.appendChild(option);
-      });
-      pageSelect.value = currentPage;
-    }
+/* ----------------------------------
+   CHANGER PAGE
+---------------------------------- */
+pageSelect.addEventListener("change", () => {
+  currentPage = pageSelect.value;
+  loadPageContent();
+});
 
-    async function loadPage() {
-      const savedText = localStorage.getItem("texte_sorbonne_" + currentPage);
-      noteArea.value = savedText || "Aucun texte pour cette page.";
+/* ----------------------------------
+   AJOUTER PAGE
+---------------------------------- */
+document.getElementById("addPageBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
 
-      const ref = doc(db, "texte", currentPage);
-      const snap = await getDoc(ref);
-      if (snap.exists()) noteArea.value = snap.data().contenu;
-    }
+  const name = newPageName.value.trim();
+  if (!name) return;
 
-    refreshPageList();
-    loadPage();
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "addPage", name })
+  });
 
-    pageSelect.addEventListener("change", () => {
-      currentPage = pageSelect.value;
-      loadPage();
-    });
+  newPageName.value = "";
+  loadPages();
+});
 
-    document.getElementById("addPageBtn").addEventListener("click", async () => {
-      const name = newPageName.value.trim();
-      if (!isAdmin) return alert("Réservé à l’administrateur.");
-      if (!name) return alert("Entrez un nom de page.");
-      if (pages.includes(name)) return alert("Cette page existe déjà.");
+/* ----------------------------------
+   SUPPRIMER PAGE
+---------------------------------- */
+document.getElementById("deletePageBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
+  if (!confirm(`Supprimer "${currentPage}" ?`)) return;
 
-      pages.push(name);
-      localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "deletePage", name: currentPage })
+  });
 
-      await setDoc(doc(db, "pages", "liste"), { pages });
+  loadPages();
+});
 
-      newPageName.value = "";
-      refreshPageList();
-      currentPage = name;
-      loadPage();
-    });
+/* ----------------------------------
+   CONNEXION ADMIN
+---------------------------------- */
+document.getElementById("loginBtn").addEventListener("click", () => {
+  if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
+    isAdmin = true;
+    document.getElementById("login").style.display = "none";
 
-    document.getElementById("deletePageBtn").addEventListener("click", async () => {
-      if (!isAdmin) return alert("Réservé à l’administrateur.");
-      if (confirm(`Supprimer "${currentPage}" ?`)) {
-        pages = pages.filter(p => p !== currentPage);
-        localStorage.removeItem("texte_sorbonne_" + currentPage);
-        localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+    noteArea.readOnly = false;
+    noteArea.classList.remove("readonly");
 
-        await setDoc(doc(db, "pages", "liste"), { pages });
+    adminButtons.style.display = "block";
+    adminPageControls.style.display = "block";
+  } else {
+    alert("Mot de passe incorrect");
+  }
+});
 
-        currentPage = pages[0] || "Page 1";
-        refreshPageList();
-        loadPage();
-      }
-    });
+/* ----------------------------------
+   SAUVEGARDE TEXTE
+---------------------------------- */
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
 
-    document.getElementById("loginBtn").addEventListener("click", () => {
-      const input = document.getElementById("passwordInput").value;
-      if (input === ADMIN_PASSWORD) {
-        isAdmin = true;
-        alert("Connexion réussie !");
-        document.getElementById("login").style.display = "none";
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "saveText",
+      name: currentPage,
+      text: noteArea.value
+    })
+  });
 
-        noteArea.readOnly = false;
-        noteArea.classList.remove("readonly");
-        adminButtons.style.display = "block";
-        adminPageControls.style.display = "block";
-      } else {
-        alert("Mot de passe incorrect ❌");
-      }
-    });
+  alert("Texte sauvegardé !");
+});
 
-    document.getElementById("saveBtn").addEventListener("click", async () => {
-      if (!isAdmin) return alert("Accès réservé à l’administrateur.");
+/* ----------------------------------
+   INIT
+---------------------------------- */
+loadPages();
+</script>
 
-      localStorage.setItem("texte_sorbonne_" + currentPage, noteArea.value);
-
-      await setDoc(doc(db, "texte", currentPage), {
-        contenu: noteArea.value,
-        maj: Date.now()
-      });
-
-      alert("Texte sauvegardé !");
-    });
-
-  </script>
 </body>
 </html>

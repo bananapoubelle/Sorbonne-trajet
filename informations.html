@@ -53,8 +53,6 @@
     #pageControls {
       margin-bottom: 15px;
     }
-
-    /* Zone des images */
     #imageGallery img {
       width: 200px;
       margin: 10px;
@@ -68,191 +66,215 @@
 </head>
 <body>
 
-  <header>
-    <h1>Informations supplémentaires</h1>
-    <nav>
-      <a href="index.html">Accueil</a>
-      <a href="carte.html">Carte</a>
-      <a href="texte.html">Carnet de bord</a>
-      <a href="informations.html">Informations supplémentaires</a>
-    </nav>
-  </header>
+<header>
+  <h1>Informations supplémentaires</h1>
+  <nav>
+    <a href="index.html">Accueil</a>
+    <a href="carte.html">Carte</a>
+    <a href="texte.html">Carnet de bord</a>
+    <a href="informations.html">Informations supplémentaires</a>
+  </nav>
+</header>
 
-  <!-- 🔒 Connexion admin -->
-  <div id="login">
-    <input type="password" id="passwordInput" placeholder="Mot de passe admin">
-    <button id="loginBtn">Connexion</button>
+<!-- Connexion admin -->
+<div id="login">
+  <input type="password" id="passwordInput" placeholder="Mot de passe admin">
+  <button id="loginBtn">Connexion</button>
+</div>
+
+<main>
+  <h2>Pages d'informations</h2>
+  <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie CMA CGM, ainsi que 2 passages stratégiques.</p>
+
+  <div id="pageControls">
+    <label for="pageSelect">Page :</label>
+    <select id="pageSelect"></select>
   </div>
 
-  <main>
-    <h2>Pages d'informations</h2>
-    <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie CMA CGM, ainsi que 2 passages stratégiques.</p>
+  <div id="adminPageControls" style="display:none;">
+    <input type="text" id="newPageName" placeholder="Nom nouvelle page">
+    <button id="addPageBtn">➕ Ajouter</button>
+    <button id="deletePageBtn">🗑️ Supprimer</button>
+  </div>
 
-    <!-- 🗂️ Navigation pages -->
-    <div id="pageControls">
-      <label for="pageSelect">Page :</label>
-      <select id="pageSelect"></select>
-    </div>
+  <textarea id="noteArea" readonly class="readonly"></textarea>
 
-    <!-- 🔒 Boutons admin pages -->
-    <div id="adminPageControls" style="display:none;">
-      <input type="text" id="newPageName" placeholder="Nom nouvelle page">
-      <button id="addPageBtn">➕ Ajouter</button>
-      <button id="deletePageBtn">🗑️ Supprimer</button>
-    </div>
+  <h3>Images</h3>
+  <div id="imageGallery"></div>
 
-    <!-- 📝 Texte -->
-    <textarea id="noteArea" readonly class="readonly"></textarea>
+  <div id="adminImageControls" style="display:none;">
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="addImageBtn">📷 Ajouter image</button>
+  </div>
 
-    <!-- 🖼️ Galerie d'images -->
-    <h3>Images</h3>
-    <div id="imageGallery"></div>
+  <div id="adminButtons" style="display:none;">
+    <button id="saveBtn">💾 Sauvegarder texte</button>
+  </div>
 
-    <!-- 🔒 Ajout d’image -->
-    <div id="adminImageControls" style="display:none;">
-      <input type="file" id="imageInput" accept="image/*">
-      <button id="addImageBtn">📷 Ajouter image</button>
-    </div>
+</main>
 
-    <!-- 🔒 Save -->
-    <div id="adminButtons" style="display:none;">
-      <button id="saveBtn">💾 Sauvegarder texte</button>
-    </div>
+<footer>
+  <p>&copy; 2025 - Projet Sorbonne</p>
+</footer>
 
-  </main>
+<script>
+/* ----------------------------------
+   CONFIG
+---------------------------------- */
+const ADMIN_PASSWORD = "conteneurs2025";
+const API_URL = "https://script.google.com/macros/s/AKfycbxpdytMtfg_A4OyOvZSSFXqBYklwCLei4uQJY_b69Cl2BFM7xmYAE-KdLUbxdkdZUoa/exec";
 
-  <footer>
-    <p>&copy; 2025 - Projet Sorbonne</p>
-  </footer>
+let isAdmin = false;
+let currentPage = "";
 
-  <script>
-    const ADMIN_PASSWORD = "conteneurs2025";
-    let isAdmin = false;
-    let currentPage = "Page 1";
+/* DOM elements */
+const noteArea = document.getElementById("noteArea");
+const pageSelect = document.getElementById("pageSelect");
+const adminButtons = document.getElementById("adminButtons");
+const adminPageControls = document.getElementById("adminPageControls");
+const adminImageControls = document.getElementById("adminImageControls");
+const newPageName = document.getElementById("newPageName");
+const imageGallery = document.getElementById("imageGallery");
 
-    const noteArea = document.getElementById("noteArea");
-    const adminButtons = document.getElementById("adminButtons");
-    const adminPageControls = document.getElementById("adminPageControls");
-    const adminImageControls = document.getElementById("adminImageControls");
-    const pageSelect = document.getElementById("pageSelect");
-    const newPageName = document.getElementById("newPageName");
-    const imageGallery = document.getElementById("imageGallery");
+/* ----------------------------------
+   CHARGER PAGES DEPUIS GOOGLE SHEETS
+---------------------------------- */
+async function loadPages() {
+  const res = await fetch(API_URL + "?action=getPages");
+  const data = await res.json();
 
-    // 📄 Charger les pages
-    let pages = JSON.parse(localStorage.getItem("pages_infos_sorbonne")) || ["Page 1"];
+  pageSelect.innerHTML = "";
+  data.pages.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    pageSelect.appendChild(opt);
+  });
 
-    function refreshPageList() {
-      pageSelect.innerHTML = "";
-      pages.forEach(p => {
-        const option = document.createElement("option");
-        option.value = p;
-        option.textContent = p;
-        pageSelect.appendChild(option);
-      });
-      pageSelect.value = currentPage;
-    }
+  currentPage = data.pages[0];
+  loadPageContent();
+}
 
-    function loadPage() {
-      const savedText = localStorage.getItem("infos_sorbonne_" + currentPage);
-      noteArea.value = savedText || "Aucun texte pour cette page.";
+/* Charger contenu + images */
+async function loadPageContent() {
+  const res = await fetch(API_URL + "?action=getPage&name=" + encodeURIComponent(currentPage));
+  const data = await res.json();
 
-      // Charger les images
-      const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
-      imageGallery.innerHTML = "";
-      images.forEach(src => {
-        const img = document.createElement("img");
-        img.src = src;
-        imageGallery.appendChild(img);
-      });
-    }
+  noteArea.value = data.text || "Aucun texte pour cette page.";
 
-    refreshPageList();
-    loadPage();
+  imageGallery.innerHTML = "";
+  data.images.forEach(src => {
+    const img = document.createElement("img");
+    img.src = src;
+    imageGallery.appendChild(img);
+  });
+}
 
-    // 🔄 Changer de page
-    pageSelect.addEventListener("change", () => {
-      currentPage = pageSelect.value;
-      loadPage();
+/* ----------------------------------
+   CHANGER DE PAGE
+---------------------------------- */
+pageSelect.addEventListener("change", () => {
+  currentPage = pageSelect.value;
+  loadPageContent();
+});
+
+/* ----------------------------------
+   AJOUTER PAGE
+---------------------------------- */
+document.getElementById("addPageBtn").addEventListener("click", async () => {
+  if (!isAdmin) return alert("Admin uniquement.");
+  const name = newPageName.value.trim();
+  if (!name) return;
+
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "addPage", name })
+  });
+
+  newPageName.value = "";
+  loadPages();
+});
+
+/* ----------------------------------
+   SUPPRIMER PAGE
+---------------------------------- */
+document.getElementById("deletePageBtn").addEventListener("click", async () => {
+  if (!isAdmin) return alert("Admin uniquement.");
+  if (!confirm(`Supprimer "${currentPage}" ?`)) return;
+
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "deletePage", name: currentPage })
+  });
+
+  loadPages();
+});
+
+/* ----------------------------------
+   CONNEXION ADMIN
+---------------------------------- */
+document.getElementById("loginBtn").addEventListener("click", () => {
+  if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
+    isAdmin = true;
+    document.getElementById("login").style.display = "none";
+    noteArea.readOnly = false;
+    noteArea.classList.remove("readonly");
+    adminButtons.style.display = "block";
+    adminPageControls.style.display = "block";
+    adminImageControls.style.display = "block";
+  } else {
+    alert("Mot de passe incorrect");
+  }
+});
+
+/* ----------------------------------
+   SAUVEGARDE TEXTE
+---------------------------------- */
+document.getElementById("saveBtn").addEventListener("click", async () => {
+  if (!isAdmin) return;
+
+  await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "saveText",
+      name: currentPage,
+      text: noteArea.value
+    })
+  });
+
+  alert("Texte sauvegardé !");
+});
+
+/* ----------------------------------
+   AJOUT IMAGE
+---------------------------------- */
+document.getElementById("addImageBtn").addEventListener("click", () => {
+  if (!isAdmin) return;
+
+  const file = document.getElementById("imageInput").files[0];
+  if (!file) return alert("Sélectionne une image.");
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "addImage",
+        name: currentPage,
+        image: e.target.result
+      })
     });
 
-    // ➕ Ajouter une page
-    document.getElementById("addPageBtn").addEventListener("click", () => {
-      const name = newPageName.value.trim();
-      if (!isAdmin) return alert("Réservé à l’administrateur.");
-      if (!name) return alert("Entrez un nom.");
-      if (pages.includes(name)) return alert("La page existe déjà.");
+    loadPageContent();
+  };
 
-      pages.push(name);
-      localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
-      newPageName.value = "";
+  reader.readAsDataURL(file);
+});
 
-      refreshPageList();
-      currentPage = name;
-      loadPage();
-    });
-
-    // 🗑️ Supprimer page
-    document.getElementById("deletePageBtn").addEventListener("click", () => {
-      if (!isAdmin) return alert("Réservé admin.");
-      if (!confirm(`Supprimer "${currentPage}" ?`)) return;
-
-      pages = pages.filter(p => p !== currentPage);
-
-      localStorage.removeItem("infos_sorbonne_" + currentPage);
-      localStorage.removeItem("infos_images_" + currentPage);
-
-      localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
-
-      currentPage = pages[0] || "Page 1";
-      if (pages.length === 0) pages.push("Page 1");
-
-      refreshPageList();
-      loadPage();
-    });
-
-    // 🔐 Connexion admin
-    document.getElementById("loginBtn").addEventListener("click", () => {
-      if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
-        isAdmin = true;
-        alert("Connexion réussie");
-
-        document.getElementById("login").style.display = "none";
-        noteArea.readOnly = false;
-        noteArea.classList.remove("readonly");
-
-        adminButtons.style.display = "block";
-        adminPageControls.style.display = "block";
-        adminImageControls.style.display = "block";
-      } else {
-        alert("Mot de passe incorrect");
-      }
-    });
-
-    // 💾 Sauvegarder texte
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      if (!isAdmin) return;
-      localStorage.setItem("infos_sorbonne_" + currentPage, noteArea.value);
-      alert("Texte sauvegardé !");
-    });
-
-    // 📷 Ajouter image
-    document.getElementById("addImageBtn").addEventListener("click", () => {
-      if (!isAdmin) return;
-
-      const fileInput = document.getElementById("imageInput");
-      const file = fileInput.files[0];
-      if (!file) return alert("Sélectionne une image.");
-
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
-        images.push(e.target.result);
-
-        localStorage.setItem("infos_images_" + currentPage, JSON.stringify(images));
-        loadPage();
-      };
-      reader.readAsDataURL(file);
-    });
-  </script>
+/* ----------------------------------
+   INIT
+---------------------------------- */
+loadPages();
+</script>
 </body>
 </html>
