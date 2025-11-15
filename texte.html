@@ -64,7 +64,6 @@
     </nav>
   </header>
 
-  <!-- 🔒 Zone de connexion admin -->
   <div id="login">
     <input type="password" id="passwordInput" placeholder="Mot de passe admin">
     <button id="loginBtn">Connexion</button>
@@ -74,23 +73,19 @@
     <h2>Notes et informations</h2>
     <p>Ci-dessous se trouvent les pages du carnet de bord du porte-conteneur <strong>Sorbonne</strong>.</p>
 
-    <!-- 🗂️ Zone visible par tous (navigation entre pages) -->
     <div id="pageControls">
       <label for="pageSelect">Page :</label>
       <select id="pageSelect"></select>
     </div>
 
-    <!-- 🔒 Zone visible uniquement pour l’admin -->
     <div id="adminPageControls" style="display:none;">
       <input type="text" id="newPageName" placeholder="Nom nouvelle page">
       <button id="addPageBtn">➕ Ajouter</button>
       <button id="deletePageBtn">🗑️ Supprimer</button>
     </div>
 
-    <!-- 📜 Zone de texte -->
     <textarea id="noteArea" readonly class="readonly"></textarea><br>
 
-    <!-- 🔒 Boutons admin (sauvegarde) -->
     <div id="adminButtons" style="display:none;">
       <button id="saveBtn">💾 Sauvegarder</button>
     </div>
@@ -100,7 +95,23 @@
     <p>&copy; 2025 - Projet Sorbonne</p>
   </footer>
 
-  <script>
+  <!-- Firebase -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDHlrbK2iNvCZ6wThguhYyfOAC0_n5YmE",
+      authDomain: "sorbonne-1134e.firebaseapp.com",
+      projectId: "sorbonne-1134e",
+      storageBucket: "sorbonne-1134e.firebasestorage.app",
+      messagingSenderId: "655157876768",
+      appId: "1:655157876768:web:838e12e0eaaca2e8580445"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     const ADMIN_PASSWORD = "conteneurs2025";
     let isAdmin = false;
     let currentPage = "Page 1";
@@ -111,8 +122,8 @@
     const pageSelect = document.getElementById("pageSelect");
     const newPageName = document.getElementById("newPageName");
 
-    // Charger les pages existantes
     let pages = JSON.parse(localStorage.getItem("pages_sorbonne")) || ["Page 1"];
+
     function refreshPageList() {
       pageSelect.innerHTML = "";
       pages.forEach(p => {
@@ -124,50 +135,55 @@
       pageSelect.value = currentPage;
     }
 
-    // Charger le texte de la page courante
-    function loadPage() {
+    async function loadPage() {
       const savedText = localStorage.getItem("texte_sorbonne_" + currentPage);
       noteArea.value = savedText || "Aucun texte pour cette page.";
+
+      const ref = doc(db, "texte", currentPage);
+      const snap = await getDoc(ref);
+      if (snap.exists()) noteArea.value = snap.data().contenu;
     }
 
     refreshPageList();
     loadPage();
 
-    // Changer de page
     pageSelect.addEventListener("change", () => {
       currentPage = pageSelect.value;
       loadPage();
     });
 
-    // Ajouter une page
-    document.getElementById("addPageBtn").addEventListener("click", () => {
+    document.getElementById("addPageBtn").addEventListener("click", async () => {
       const name = newPageName.value.trim();
       if (!isAdmin) return alert("Réservé à l’administrateur.");
       if (!name) return alert("Entrez un nom de page.");
       if (pages.includes(name)) return alert("Cette page existe déjà.");
+
       pages.push(name);
       localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+
+      await setDoc(doc(db, "pages", "liste"), { pages });
+
       newPageName.value = "";
       refreshPageList();
       currentPage = name;
       loadPage();
     });
 
-    // Supprimer une page
-    document.getElementById("deletePageBtn").addEventListener("click", () => {
+    document.getElementById("deletePageBtn").addEventListener("click", async () => {
       if (!isAdmin) return alert("Réservé à l’administrateur.");
       if (confirm(`Supprimer "${currentPage}" ?`)) {
         pages = pages.filter(p => p !== currentPage);
         localStorage.removeItem("texte_sorbonne_" + currentPage);
         localStorage.setItem("pages_sorbonne", JSON.stringify(pages));
+
+        await setDoc(doc(db, "pages", "liste"), { pages });
+
         currentPage = pages[0] || "Page 1";
-        if (pages.length === 0) pages.push("Page 1");
         refreshPageList();
         loadPage();
       }
     });
 
-    // Connexion admin
     document.getElementById("loginBtn").addEventListener("click", () => {
       const input = document.getElementById("passwordInput").value;
       if (input === ADMIN_PASSWORD) {
@@ -175,7 +191,6 @@
         alert("Connexion réussie !");
         document.getElementById("login").style.display = "none";
 
-        // ✅ Active uniquement les zones admin
         noteArea.readOnly = false;
         noteArea.classList.remove("readonly");
         adminButtons.style.display = "block";
@@ -185,12 +200,19 @@
       }
     });
 
-    // Sauvegarder le texte
-    document.getElementById("saveBtn").addEventListener("click", () => {
+    document.getElementById("saveBtn").addEventListener("click", async () => {
       if (!isAdmin) return alert("Accès réservé à l’administrateur.");
+
       localStorage.setItem("texte_sorbonne_" + currentPage, noteArea.value);
+
+      await setDoc(doc(db, "texte", currentPage), {
+        contenu: noteArea.value,
+        maj: Date.now()
+      });
+
       alert("Texte sauvegardé !");
     });
+
   </script>
 </body>
 </html>

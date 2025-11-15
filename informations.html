@@ -53,8 +53,6 @@
     #pageControls {
       margin-bottom: 15px;
     }
-
-    /* Zone des images */
     #imageGallery img {
       width: 200px;
       margin: 10px;
@@ -78,7 +76,6 @@
     </nav>
   </header>
 
-  <!-- 🔒 Connexion admin -->
   <div id="login">
     <input type="password" id="passwordInput" placeholder="Mot de passe admin">
     <button id="loginBtn">Connexion</button>
@@ -86,47 +83,56 @@
 
   <main>
     <h2>Pages d'informations</h2>
-    <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie CMA CGM, ainsi que 2 passages stratégiques et 3 ports par lesquelles est
-      passé le sorbonne du 26 septembre au 6 novembre.</p>
+    <p>Ici des informations sur le <strong>Sorbonne</strong> et la compagnie CMA CGM, ainsi que divers points stratégiques.</p>
 
-    <!-- 🗂️ Navigation pages -->
     <div id="pageControls">
       <label for="pageSelect">Page :</label>
       <select id="pageSelect"></select>
     </div>
 
-    <!-- 🔒 Boutons admin pages -->
     <div id="adminPageControls" style="display:none;">
       <input type="text" id="newPageName" placeholder="Nom nouvelle page">
       <button id="addPageBtn">➕ Ajouter</button>
       <button id="deletePageBtn">🗑️ Supprimer</button>
     </div>
 
-    <!-- 📝 Texte -->
     <textarea id="noteArea" readonly class="readonly"></textarea>
 
-    <!-- 🖼️ Galerie d'images -->
     <h3>Images</h3>
     <div id="imageGallery"></div>
 
-    <!-- 🔒 Ajout d’image -->
     <div id="adminImageControls" style="display:none;">
       <input type="file" id="imageInput" accept="image/*">
       <button id="addImageBtn">📷 Ajouter image</button>
     </div>
 
-    <!-- 🔒 Save -->
     <div id="adminButtons" style="display:none;">
       <button id="saveBtn">💾 Sauvegarder texte</button>
     </div>
-
   </main>
 
   <footer>
     <p>&copy; 2025 - Projet Sorbonne</p>
   </footer>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-storage.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDHlrbK2iNvCZ6wHthguhYyfOAC0_n5YmE",
+      authDomain: "sorbonne-1134e.firebaseapp.com",
+      projectId: "sorbonne-1134e",
+      storageBucket: "sorbonne-1134e.appspot.com",
+      messagingSenderId: "655157876768",
+      appId: "1:655157876768:web:838e12e0eaaca2e8580445"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+
     const ADMIN_PASSWORD = "conteneurs2025";
     let isAdmin = false;
     let currentPage = "Page 1";
@@ -139,10 +145,32 @@
     const newPageName = document.getElementById("newPageName");
     const imageGallery = document.getElementById("imageGallery");
 
-    // 📄 Charger les pages
-    let pages = JSON.parse(localStorage.getItem("pages_infos_sorbonne")) || ["Page 1"];
+    async function loadPageList() {
+      const snap = await getDoc(doc(db, "infos_pages", "list"));
+      if (snap.exists()) return snap.data().pages;
+      return ["Page 1"]; 
+    }
 
-    function refreshPageList() {
+    async function savePageList(pages) {
+      await setDoc(doc(db, "infos_pages", "list"), { pages });
+    }
+
+    async function loadPageContent() {
+      const snap = await getDoc(doc(db, "infos_text", currentPage));
+      noteArea.value = snap.exists() ? snap.data().text : "Aucun texte pour cette page.";
+
+      const imgSnap = await getDoc(doc(db, "infos_images", currentPage));
+      imageGallery.innerHTML = "";
+      if (imgSnap.exists()) {
+        imgSnap.data().urls.forEach(url => {
+          const img = document.createElement("img");
+          img.src = url;
+          imageGallery.appendChild(img);
+        });
+      }
+    }
+
+    function refreshPageList(pages) {
       pageSelect.innerHTML = "";
       pages.forEach(p => {
         const option = document.createElement("option");
@@ -153,74 +181,55 @@
       pageSelect.value = currentPage;
     }
 
-    function loadPage() {
-      const savedText = localStorage.getItem("infos_sorbonne_" + currentPage);
-      noteArea.value = savedText || "Aucun texte pour cette page.";
+    (async () => {
+      const pages = await loadPageList();
+      refreshPageList(pages);
+      await loadPageContent();
+    })();
 
-      // Charger les images
-      const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
-      imageGallery.innerHTML = "";
-      images.forEach(src => {
-        const img = document.createElement("img");
-        img.src = src;
-        imageGallery.appendChild(img);
-      });
-    }
-
-    refreshPageList();
-    loadPage();
-
-    // 🔄 Changer de page
-    pageSelect.addEventListener("change", () => {
+    pageSelect.addEventListener("change", async () => {
       currentPage = pageSelect.value;
-      loadPage();
+      await loadPageContent();
     });
 
-    // ➕ Ajouter une page
-    document.getElementById("addPageBtn").addEventListener("click", () => {
+    document.getElementById("addPageBtn").addEventListener("click", async () => {
+      if (!isAdmin) return;
       const name = newPageName.value.trim();
-      if (!isAdmin) return alert("Réservé à l’administrateur.");
       if (!name) return alert("Entrez un nom.");
+
+      let pages = await loadPageList();
       if (pages.includes(name)) return alert("La page existe déjà.");
 
       pages.push(name);
-      localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
-      newPageName.value = "";
+      await savePageList(pages);
 
-      refreshPageList();
+      newPageName.value = "";
+      refreshPageList(pages);
       currentPage = name;
-      loadPage();
+      await loadPageContent();
     });
 
-    // 🗑️ Supprimer page
-    document.getElementById("deletePageBtn").addEventListener("click", () => {
-      if (!isAdmin) return alert("Réservé admin.");
+    document.getElementById("deletePageBtn").addEventListener("click", async () => {
+      if (!isAdmin) return;
       if (!confirm(`Supprimer "${currentPage}" ?`)) return;
 
+      let pages = await loadPageList();
       pages = pages.filter(p => p !== currentPage);
+      if (pages.length === 0) pages = ["Page 1"]; 
 
-      localStorage.removeItem("infos_sorbonne_" + currentPage);
-      localStorage.removeItem("infos_images_" + currentPage);
+      await savePageList(pages);
 
-      localStorage.setItem("pages_infos_sorbonne", JSON.stringify(pages));
-
-      currentPage = pages[0] || "Page 1";
-      if (pages.length === 0) pages.push("Page 1");
-
-      refreshPageList();
-      loadPage();
+      currentPage = pages[0];
+      refreshPageList(pages);
+      await loadPageContent();
     });
 
-    // 🔐 Connexion admin
     document.getElementById("loginBtn").addEventListener("click", () => {
       if (document.getElementById("passwordInput").value === ADMIN_PASSWORD) {
         isAdmin = true;
-        alert("Connexion réussie");
-
         document.getElementById("login").style.display = "none";
         noteArea.readOnly = false;
         noteArea.classList.remove("readonly");
-
         adminButtons.style.display = "block";
         adminPageControls.style.display = "block";
         adminImageControls.style.display = "block";
@@ -229,30 +238,29 @@
       }
     });
 
-    // 💾 Sauvegarder texte
-    document.getElementById("saveBtn").addEventListener("click", () => {
+    document.getElementById("saveBtn").addEventListener("click", async () => {
       if (!isAdmin) return;
-      localStorage.setItem("infos_sorbonne_" + currentPage, noteArea.value);
+      await setDoc(doc(db, "infos_text", currentPage), { text: noteArea.value });
       alert("Texte sauvegardé !");
     });
 
-    // 📷 Ajouter image
-    document.getElementById("addImageBtn").addEventListener("click", () => {
+    document.getElementById("addImageBtn").addEventListener("click", async () => {
       if (!isAdmin) return;
+      const file = document.getElementById("imageInput").files[0];
+      if (!file) return alert("Sélectionnez une image.");
 
-      const fileInput = document.getElementById("imageInput");
-      const file = fileInput.files[0];
-      if (!file) return alert("Sélectionne une image.");
+      const storageRef = ref(storage, `infos_images/${currentPage}/${Date.now()}_${file.name}`);
+      await uploadBytes(storageRef, file);
 
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const images = JSON.parse(localStorage.getItem("infos_images_" + currentPage)) || [];
-        images.push(e.target.result);
+      const url = await getDownloadURL(storageRef);
 
-        localStorage.setItem("infos_images_" + currentPage, JSON.stringify(images));
-        loadPage();
-      };
-      reader.readAsDataURL(file);
+      const imgSnap = await getDoc(doc(db, "infos_images", currentPage));
+      let imgs = imgSnap.exists() ? imgSnap.data().urls : [];
+      imgs.push(url);
+
+      await setDoc(doc(db, "infos_images", currentPage), { urls: imgs });
+
+      await loadPageContent();
     });
   </script>
 </body>
